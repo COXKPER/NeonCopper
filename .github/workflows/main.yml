@@ -17,7 +17,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'  # Change to your Java version
+          java-version: '21'  # Change to your Java version
 
       - name: 🧪 Build with Maven
         run: mvn clean package
