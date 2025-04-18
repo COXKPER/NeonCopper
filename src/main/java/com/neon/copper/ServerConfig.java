@@ -19,6 +19,7 @@ public class ServerConfig {
             properties.setProperty("port", "25565");
             properties.setProperty("seed", "1000");
             properties.setProperty("view-distance", "16");
+            properties.setProperty("online-mode", "true");
             save(filename);
         }
     }
