@@ -1,0 +1,30 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Triggers only when pushing tags like v1.0.0, v2.5.3, etc.
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: ☕ Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'  # Change to your Java version
+
+      - name: 🧪 Build with Maven
+        run: mvn clean package
+
+      - name: 📦 Upload JAR to GitHub Release
+        uses: fnkr/github-action-ghr@v1.3
+        with:
+          files: target/*.jar  # Change this if your artifact name or location is different
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
