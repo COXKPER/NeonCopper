@@ -101,7 +101,6 @@ public class Main {
 
         try {
             Files.write(Path.of("./world/overworld.mca"), PolarWriter.write(polarLoader.world()), StandardOpenOption.CREATE);
-            logger.info("World Saved");
         } catch (Exception e) {
             logger.error("Failed to save world", e);
         }
@@ -122,7 +121,7 @@ public class Main {
         logger.info("Made By Neon Devs");
         logger.info("The Player coordinate not Saved, I Dont Really Develop This, But if you Disconnect or stop the server you will Back to that spawn pos again");
         Random rand = new Random();
-        int number = rand.nextInt(10000) + 1; // menghasilkan angka 1 sampai 10000
+        int number = rand.nextInt(10000) + 1;
 
         if (number == 10) {
             logger.info("Buat Orang Indo: Arapa Putra Kontol");
