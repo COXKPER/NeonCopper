@@ -4,11 +4,16 @@
     <Console name="Console" target="SYSTEM_OUT">
       <PatternLayout pattern="%style{[%d{HH:mm:ss}]}{white} %highlight{[%t/%p]}: %msg%n"/>
     </Console>
+
+    <File name="FileLogger" fileName="logs/latest.txt">
+      <PatternLayout pattern="%style{[%d{HH:mm:ss}]}{white} %highlight{[%t/%p]}: %msg%n"/>
+    </File>
   </Appenders>
 
   <Loggers>
     <Root level="info">
       <AppenderRef ref="Console"/>
+      <AppenderRef ref="FileLogger"/>
     </Root>
   </Loggers>
 </Configuration>

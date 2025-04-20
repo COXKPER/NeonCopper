@@ -35,7 +35,7 @@ public class PluginLoader {
         if (!pluginDir.exists()) {
             if (pluginDir.mkdirs()) {
             } else {
-                logger.error("[PluginLoader]Failed to create plugins folder.");
+                logger.error("Failed to create plugins folder.");
                 return;
             }
         }
@@ -43,7 +43,7 @@ public class PluginLoader {
         File[] jars = pluginDir.listFiles((dir, name) -> name.endsWith(".jar"));
 
         if (jars == null || jars.length == 0) {
-            logger.warn("[PluginLoader] No plugins found.");
+            logger.warn("No plugins found.");
             return;
         }
 
@@ -52,7 +52,7 @@ public class PluginLoader {
 
                 JarEntry entry = jarFile.getJarEntry("plugin.yml");
                 if (entry == null) {
-                    logger.error("[PluginLoader] plugin.yml missing in " + jar.getName());
+                    logger.error("plugin.yml missing in " + jar.getName());
                     continue;
                 }
 
@@ -62,7 +62,7 @@ public class PluginLoader {
 
                 String mainClassName = props.getProperty("main");
                 if (mainClassName == null) {
-                    logger.error("[PluginLoader] 'main' class not defined in plugin.yml of " + jar.getName());
+                    logger.error("'main' class not defined in plugin.yml of " + jar.getName());
                     continue;
                 }
 
@@ -77,7 +77,7 @@ public class PluginLoader {
                 try {
                     Method onEnable = pluginClass.getMethod("onEnable");
                     onEnable.invoke(pluginInstance);
-                    logger.info("[PluginLoader] Loaded plugin: " + props.getProperty("name") + " v" + props.getProperty("version"));
+                    logger.info("Loaded plugin: " + props.getProperty("name") + " v" + props.getProperty("version"));
                                 // Inside loadPlugins() after plugin loads successfully:
                     loadedPlugins.add(new PluginInfo(
                         props.getProperty("name", "Unknown"),
@@ -85,12 +85,12 @@ public class PluginLoader {
                         props.getProperty("author", "Unknown")
                     ));
                 } catch (NoSuchMethodException e) {
-                    logger.error("[PluginLoader] Plugin loaded, but no onEnable() method found in: " + mainClassName);
+                    logger.error("Plugin loaded, but no onEnable() method found in: " + mainClassName);
                 }
 
             } catch (Exception e) {
-                logger.error("[PluginLoader] Failed to load plugin: " + jar.getName());
-                e.printStackTrace();
+                logger.error("Failed to load plugin: " + jar.getName());
+                logger.error(e);
             }
         }
     }

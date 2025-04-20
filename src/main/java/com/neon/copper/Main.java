@@ -71,19 +71,42 @@ import java.util.HashSet;
 import com.neon.copper.PluginLoader;
 import com.neon.copper.commands.PluginListCommand;
 import com.neon.copper.commands.VersionCommand;
+import com.neon.copper.LogRotator;
+import lombok.*;
+import com.google.gson.*;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import net.minestom.server.event.player.PlayerSpawnEvent;
+import net.minestom.server.item.ItemComponent;
+
 
 public class Main {
-    private static final String SERVER_VERSION = "1.2.0";
+    private final Map<UUID, JsonObject> preloadedData = new ConcurrentHashMap<>();
+    private final Path dataDir = Path.of("userdata");
+    private static final String SERVER_VERSION = "1.2.15";
      private static final Set<Point> trackedFallingBlocks = new HashSet<>();
      private static final Logger logger = LogManager.getLogger(Main.class);
+     private static final Map<UUID, JsonObject> preloadData = new ConcurrentHashMap<>();
      private static String cachedFavicon;
 
     public static void main(String[] args) throws IOException{
+        File logDir = new File("logs");
+        if (!logDir.exists()) {
+            boolean created = logDir.mkdirs();
+            if (created) {
+                logger.info("Created Logging");
+            } else {
+                System.err.println("Cannot Creating Directory, Forcing Close");
+                System.exit(1);
+            }
+        }
+        LogRotator.hook();
         Permission permissionManager = new Permission();
         ServerConfig config = new ServerConfig("server.properties");
         String motd         = config.get("motd");
         int    maxPlayers   = Integer.parseInt(config.get("max-players"));
-        long   seed         = Long.parseLong(config.get("seed"));        // primitive long
+        long   seed         = Long.parseLong(config.get("seed"));        
         int    port         = Integer.parseInt(config.get("port"));
         int    viewDistance = Integer.parseInt(config.get("view-distance"));
         boolean onlineMode  = Boolean.parseBoolean(config.get("online-mode"));
@@ -105,6 +128,13 @@ public class Main {
             logger.error("Failed to save world", e);
         }
     });
+        try {
+            Thread.sleep(3000);
+        } catch (InterruptedException e) {
+            logger.error("Error, You Interrupted It");
+            e.printStackTrace();
+        }
+
 
     MinecraftServer.stopCleanly();
 }));
@@ -117,9 +147,12 @@ public class Main {
         System.setProperty("minestom.new-chunk-sending-send-interval", "1");
         Path worldFolder = Paths.get("./world");
         Path polarWorldPath = worldFolder.resolve("overworld.mca");
-        logger.info("Neon Copper Server https://copper.nzst.xyz MC 1.21.4");
-        logger.info("Made By Neon Devs");
-        logger.info("The Player coordinate not Saved, I Dont Really Develop This, But if you Disconnect or stop the server you will Back to that spawn pos again");
+        logger.info("Copper Server By COXPER Corporation");
+        logger.warn("Userdata Not Yet Implemented, You Will Needed Some Plugin For Save The Userdata");
+        logger.warn("You Will Needed A AI Mob Plugin, You Can Install The AI Mob Plugin");
+        logger.warn("The Sand,Gravel,Red Sand Not Falling, because We Not Yet Implemented, We will implement later");
+        logger.warn("For Production Use You Will Need A Plugin That Requires Spawn Point,Save Userdata,Etc");
+        logger.warn("World Generation Need Reimplemented because that Noise Make Cahotic, You can start contribute By open this link: https://github.com/COXKPER/NeonCopper");
         Random rand = new Random();
         int number = rand.nextInt(10000) + 1;
 
@@ -137,11 +170,12 @@ public class Main {
         } catch (Exception e) {
             logger.error("Failed to create world folder: " + e.getMessage());
         }
-        CustomNoise noise = new CustomNoise(seed, 0.01, 1.0, 4, 0.5);
-        logger.info("Starting Neon Copper Server " + SERVER_VERSION);
+        // CustomNoise noise = new CustomNoise(seed, 0.002, 10, 6, 0.4);
+        CustomNoise noise = new CustomNoise(seed, 0.002, 10, 6, 0.5);
+        logger.info("Starting Copper Server " + SERVER_VERSION);
 
         MinecraftServer.getCommandManager().setUnknownCommandCallback((sender, command) -> {
-            sender.sendMessage("Unknown command.");
+            sender.sendMessage("§cUnknown command.");
         });
         System.setProperty("minestom.terminal.disabled", "false");
 
@@ -158,7 +192,7 @@ public class Main {
         }
 
         } catch (IOException e) {
-          e.printStackTrace();
+          logger.error(e);
         }
 
         // Set the ChunkGenerator
@@ -170,14 +204,16 @@ instanceContainer.setGenerator(unit -> {
 
             // Adjust surface height to be higher than bedrock range
             int surfaceHeight = (int) noise.evaluateNoise(columnStart.x(), columnStart.z()) + 64;
+            // zDebuging
+            // logger.info("Debug " + noise.evaluateNoise(columnStart.x(), columnStart.z()) + 64); // We Disable It Beacuse It Dev Only, Dont Edit This Or You Commits Will Not Accepted
 
             // Bedrock layer from -36 to -30
-            for (int y = -36; y <= -30; y++) {
+            for (int y = -64; y <= -43; y++) {
                 unit.modifier().setBlock(columnStart.withY(y), Block.BEDROCK);
             }
 
             // Stone layer from -29 to surfaceHeight - 4
-            for (int y = -29; y < surfaceHeight - 3; y++) {
+            for (int y = -43; y < surfaceHeight - 3; y++) {
                 unit.modifier().setBlock(columnStart.withY(y), Block.STONE);
             }
 
@@ -226,11 +262,12 @@ instanceContainer.setGenerator(unit -> {
 
         // Add an event callback to specify the spawning instance (and the spawn position)
         GlobalEventHandler globalEventHandler = MinecraftServer.getGlobalEventHandler();
-        globalEventHandler.addListener(AsyncPlayerConfigurationEvent.class, event -> {
+ globalEventHandler.addListener(AsyncPlayerConfigurationEvent.class, event -> {
             final Player player = event.getPlayer();
             event.setSpawningInstance(instanceContainer);
             player.setRespawnPoint(new Pos(0, 100, 0));
-        });
+       });
+
         globalEventHandler.addListener(PlayerDisconnectEvent.class, event -> {
             var player = event.getPlayer();
             logger.info("User {} Disconnected From Server ", player.getUsername());
@@ -240,10 +277,10 @@ instanceContainer.setGenerator(unit -> {
             int onlinePlayers = MinecraftServer.getConnectionManager().getOnlinePlayers().size();
             if(maxPlayers > -1 &&
                     onlinePlayers > maxPlayers) {
-               logger.info("The Player Trying Join The Full Server But We disconnect it");
-               event.getConnection().kick(Component.text("The server is full"));
+               event.getConnection().kick(Component.text("§cThe server is full"));
             }
         });
+
         globalEventHandler.addListener(PlayerSkinInitEvent.class, event -> {
             var player = event.getPlayer();
             logger.info("User {} Connected To The Server", player.getUsername());
@@ -256,7 +293,7 @@ instanceContainer.setGenerator(unit -> {
             outputStream.close();
         } catch (IOException e) {
             cachedFavicon = "";
-            logger.error("Server Icon Not Found, Ignoring");
+            logger.error("Server Icon Not Found, Using Default");
         }
 
         globalEventHandler.addListener(ServerListPingEvent.class, event -> {
@@ -327,17 +364,17 @@ instanceContainer.setGenerator(unit -> {
             }
         }).repeat(TaskSchedule.millis(50)).schedule();
 
-        logger.info("Minecraft Server Started In 0.0.0.0:" + port);
+       
         if (onlineMode) {
             MojangAuth.init();
         } else {
-            logger.warn("The Online Mode Is Disabled, You Will Get A Risk");
-            logger.warn("Install Login Plugin For More Security and 2FA");
+            logger.error("The Online Mode Is Disabled, You Will Get A Risk");
+            logger.error("Install Login Plugin For More Security and 2FA");
         }
         
-        
+        logger.info("Minecraft Server Started In 0.0.0.0:" + port);
         // Start the server on that port same as server properties
-        minecraftServer.setBrandName("Neon Copper");
+        minecraftServer.setBrandName("Copper");
         minecraftServer.start("0.0.0.0", port);
         // Load Copper Terminal
         new CopperTerminalConsole().start();

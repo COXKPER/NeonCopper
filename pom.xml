@@ -1,8 +1,8 @@
 <project>
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.neon.copper</groupId>
-    <artifactId>Neon-Copper</artifactId>
-    <version>1.0.0</version>
+    <artifactId>Copper</artifactId>
+    <version>1.2.15</version>
 
     <properties>
         <java.version>21</java.version> <!--Minestom has a minimum Java version of 21-->
@@ -10,6 +10,13 @@
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
+
+        <repositories>
+        <repository>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
+        </repository>
+    </repositories>
 
     <dependencies>
         <dependency>
@@ -72,8 +79,18 @@
     <artifactId>snakeyaml</artifactId>
     <version>2.2</version>
 </dependency>
+    <dependency>
+        <groupId>org.projectlombok</groupId>
+        <artifactId>lombok</artifactId>
+        <version>1.18.38</version>
+        <scope>provided</scope>
+    </dependency>
 
-
+            <dependency>
+        <groupId>com.github.Minestom</groupId>
+        <artifactId>VanillaReimplementation</artifactId>
+        <version>a79a599b27</version>
+    </dependency>
     </dependencies>
 
     <build>
@@ -106,6 +123,13 @@
                         <descriptorRef>jar-with-dependencies</descriptorRef>
                     </descriptorRefs>
                     <appendAssemblyId>false</appendAssemblyId>
+                    <annotationProcessorPaths>
+                    <path>
+                        <groupId>org.projectlombok</groupId>
+                        <artifactId>lombok</artifactId>
+                        <version>1.18.38</version>
+                    </path>
+                </annotationProcessorPaths>
                 </configuration>
             </plugin>
         </plugins>
