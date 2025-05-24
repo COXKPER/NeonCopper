@@ -14,10 +14,10 @@ public class ServerConfig {
             }
         } else {
             // Default values
-            properties.setProperty("motd", "Welcome to my server!");
+            properties.setProperty("motd", "A Copper Minecraft Server");
             properties.setProperty("max-players", "100");
             properties.setProperty("port", "25565");
-            properties.setProperty("seed", "1000");
+            properties.setProperty("seed", "1036");
             properties.setProperty("view-distance", "16");
             properties.setProperty("online-mode", "true");
             save(filename);

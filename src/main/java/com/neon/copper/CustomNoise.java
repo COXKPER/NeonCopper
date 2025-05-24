@@ -1,7 +1,5 @@
 package com.neon.copper;
 
-import java.util.Random;
-
 public class CustomNoise {
     private final double baseFrequency;
     private final double baseAmplitude;
@@ -9,14 +7,16 @@ public class CustomNoise {
     private final double persistence;
     private final double xOffset;
     private final double zOffset;
+    private final PerlinNoise perlin;
 
     public CustomNoise(long seed, double baseFrequency, double baseAmplitude, int octaves, double persistence) {
         this.baseFrequency = baseFrequency;
         this.baseAmplitude = baseAmplitude;
         this.octaves = octaves;
         this.persistence = persistence;
+        this.perlin = new PerlinNoise(seed);
 
-        Random random = new Random(seed);
+        java.util.Random random = new java.util.Random(seed);
         this.xOffset = random.nextDouble() * 10000;
         this.zOffset = random.nextDouble() * 10000;
     }
@@ -30,12 +30,12 @@ public class CustomNoise {
             double nx = x * freq + xOffset;
             double nz = z * freq + zOffset;
 
-            total += (Math.sin(nx) + Math.cos(nz)) * amp;
+            total += perlin.noise(nx, nz) * amp;
 
             freq *= 2;
             amp *= persistence;
         }
 
-        return total;
+        return total;  // Usually between -1 and 1, normalize if needed
     }
 }

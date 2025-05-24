@@ -78,13 +78,13 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minestom.server.event.player.PlayerSpawnEvent;
-import net.minestom.server.item.ItemComponent;
+
 
 
 public class Main {
     private final Map<UUID, JsonObject> preloadedData = new ConcurrentHashMap<>();
     private final Path dataDir = Path.of("userdata");
-    private static final String SERVER_VERSION = "1.2.15";
+    private static final String SERVER_VERSION = "1.3.0";
      private static final Set<Point> trackedFallingBlocks = new HashSet<>();
      private static final Logger logger = LogManager.getLogger(Main.class);
      private static final Map<UUID, JsonObject> preloadData = new ConcurrentHashMap<>();
@@ -237,22 +237,6 @@ instanceContainer.setGenerator(unit -> {
 
         // default commands
         MinecraftServer.getCommandManager().register(new StopCommand());
-
-        var saveCommand = new Command("save");
-        saveCommand.addSyntax((sender, context) -> {
-            if (!(sender instanceof Player player)) return;
-            player.sendMessage("Saving...");
-            var polarLoader = new PolarLoader(new PolarWorld());
-            ((InstanceContainer) player.getInstance()).setChunkLoader(polarLoader);
-            player.getInstance().saveInstance().join();
-            try {
-                Files.write(Path.of("./world/overworld.mca"), PolarWriter.write(polarLoader.world()), StandardOpenOption.CREATE);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-            player.sendMessage("Saved!");
-        });
-        MinecraftServer.getCommandManager().register(saveCommand);
         MinecraftServer.getCommandManager().register(new SetPermissionCommand(permissionManager));
         MinecraftServer.getCommandManager().register(new GamemodeCommand(permissionManager));
         MinecraftServer.getCommandManager().register(new PluginListCommand());

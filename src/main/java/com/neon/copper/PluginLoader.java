@@ -12,9 +12,9 @@ import org.apache.logging.log4j.Logger;
 import java.util.ArrayList;
 import java.util.List;
 
-
 public class PluginLoader {
     private static final Logger logger = LogManager.getLogger(PluginLoader.class);
+    public static final int SUPPORTED_API_LEVEL = 4;
     public static final List<PluginInfo> loadedPlugins = new ArrayList<>();
 
     public static class PluginInfo {
@@ -29,19 +29,18 @@ public class PluginLoader {
         }
     }
 
-
+    public static void redirectSystemStreams() {
+        System.setOut(new PrintStream(new LoggingOutputStream(logger, false), true));
+        System.setErr(new PrintStream(new LoggingOutputStream(logger, true), true));
+    }
 
     public static void loadPlugins(File pluginDir) {
-        if (!pluginDir.exists()) {
-            if (pluginDir.mkdirs()) {
-            } else {
-                logger.error("Failed to create plugins folder.");
-                return;
-            }
+        if (!pluginDir.exists() && !pluginDir.mkdirs()) {
+            logger.error("Failed to create plugins folder.");
+            return;
         }
 
         File[] jars = pluginDir.listFiles((dir, name) -> name.endsWith(".jar"));
-
         if (jars == null || jars.length == 0) {
             logger.warn("No plugins found.");
             return;
@@ -50,9 +49,9 @@ public class PluginLoader {
         for (File jar : jars) {
             try (JarFile jarFile = new JarFile(jar)) {
 
-                JarEntry entry = jarFile.getJarEntry("plugin.yml");
+                JarEntry entry = jarFile.getJarEntry("neoplugin.yml");
                 if (entry == null) {
-                    logger.error("plugin.yml missing in " + jar.getName());
+                    logger.error("neoplugin.yml missing in " + jar.getName());
                     continue;
                 }
 
@@ -61,8 +60,13 @@ public class PluginLoader {
                 props.load(is);
 
                 String mainClassName = props.getProperty("main");
-                if (mainClassName == null) {
-                    logger.error("'main' class not defined in plugin.yml of " + jar.getName());
+                String pluginName = props.getProperty("name", "Unknown");
+                String pluginVersion = props.getProperty("version", "N/A");
+                String pluginAuthor = props.getProperty("author", "Unknown");
+                int apiLevel = Integer.parseInt(props.getProperty("api", "0"));
+
+                if (apiLevel != SUPPORTED_API_LEVEL) {
+                    logger.error("Incompatible API level in plugin " + pluginName + ": " + apiLevel + " (required: " + SUPPORTED_API_LEVEL + ")");
                     continue;
                 }
 
@@ -77,21 +81,56 @@ public class PluginLoader {
                 try {
                     Method onEnable = pluginClass.getMethod("onEnable");
                     onEnable.invoke(pluginInstance);
-                    logger.info("Loaded plugin: " + props.getProperty("name") + " v" + props.getProperty("version"));
-                                // Inside loadPlugins() after plugin loads successfully:
-                    loadedPlugins.add(new PluginInfo(
-                        props.getProperty("name", "Unknown"),
-                        props.getProperty("version", "N/A"),
-                        props.getProperty("author", "Unknown")
-                    ));
+                    logger.info("Loaded plugin: " + pluginName + " v" + pluginVersion);
+                    loadedPlugins.add(new PluginInfo(pluginName, pluginVersion, pluginAuthor));
                 } catch (NoSuchMethodException e) {
-                    logger.error("Plugin loaded, but no onEnable() method found in: " + mainClassName);
+                    logger.error("Plugin loaded but no onEnable() found in: " + mainClassName);
                 }
 
             } catch (Exception e) {
                 logger.error("Failed to load plugin: " + jar.getName());
                 logger.error(e);
             }
+        }
+    }
+
+    // Custom OutputStream to redirect println to logger
+    private static class LoggingOutputStream extends OutputStream {
+        private final Logger logger;
+        private final boolean isError;
+        private final StringBuilder buffer = new StringBuilder();
+
+        public LoggingOutputStream(Logger logger, boolean isError) {
+            this.logger = logger;
+            this.isError = isError;
+        }
+
+        @Override
+        public void write(int b) {
+            if (b == '\n') {
+                flushBuffer();
+            } else {
+                buffer.append((char) b);
+            }
+        }
+
+        private void flushBuffer() {
+            if (buffer.length() > 0) {
+                String msg = buffer.toString().trim();
+                if (!msg.isEmpty()) {
+                    if (isError) {
+                        logger.error("[Plugin] " + msg);
+                    } else {
+                        logger.info("[Plugin] " + msg);
+                    }
+                }
+                buffer.setLength(0);
+            }
+        }
+
+        @Override
+        public void flush() {
+            flushBuffer();
         }
     }
 }
