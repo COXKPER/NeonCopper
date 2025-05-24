@@ -275,8 +275,13 @@ instanceContainer.setGenerator(unit -> {
 
         globalEventHandler.addListener(PlayerSpawnEvent.class, event -> {
             Player player = event.getPlayer();
-            player.scheduleNextTick(() -> Userdata.load(player, instanceContainer));
+            player.scheduleNextTick(entity -> {
+                // You can cast 'entity' back to 'Player' if needed, though often not necessary
+                // since 'player' is already available and the same object.
+                Userdata.load((Player) entity, instanceContainer);
+            });
         });
+
 
 
         globalEventHandler.addListener(PlayerSkinInitEvent.class, event -> {
