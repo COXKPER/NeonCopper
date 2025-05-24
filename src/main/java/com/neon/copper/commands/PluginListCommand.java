@@ -12,7 +12,7 @@ public class PluginListCommand extends Command {
 
         setDefaultExecutor((sender, context) -> {
             if (sender instanceof Player player) {
-                player.sendMessage("§6Plugins (" + PluginLoader.loadedPlugins.size() + "):");
+                player.sendMessage("§6🛈 Plugins (" + PluginLoader.loadedPlugins.size() + "):");
 
                 for (PluginLoader.PluginInfo plugin : PluginLoader.loadedPlugins) {
                     player.sendMessage("§f- §a" + plugin.name + " §7v" + plugin.version + " §8by " + plugin.author);

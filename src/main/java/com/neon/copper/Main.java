@@ -1,5 +1,11 @@
 package com.neon.copper;
 
+import com.neon.copper.Userdata;
+import io.github.togar2.fluids.Fluid;
+import io.github.togar2.fluids.FluidState;
+import io.github.togar2.fluids.MinestomFluids;
+import io.github.togar2.fluids.WaterlogHandler;
+import net.minestom.server.extras.lan.OpenToLAN;
 import com.neon.copper.commands.StopCommand;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.entity.Player;
@@ -84,7 +90,7 @@ import net.minestom.server.event.player.PlayerSpawnEvent;
 public class Main {
     private final Map<UUID, JsonObject> preloadedData = new ConcurrentHashMap<>();
     private final Path dataDir = Path.of("userdata");
-    private static final String SERVER_VERSION = "1.3.0";
+    private static final String SERVER_VERSION = "1.3.1";
      private static final Set<Point> trackedFallingBlocks = new HashSet<>();
      private static final Logger logger = LogManager.getLogger(Main.class);
      private static final Map<UUID, JsonObject> preloadData = new ConcurrentHashMap<>();
@@ -148,11 +154,10 @@ public class Main {
         Path worldFolder = Paths.get("./world");
         Path polarWorldPath = worldFolder.resolve("overworld.mca");
         logger.info("Copper Server By COXPER Corporation");
-        logger.warn("Userdata Not Yet Implemented, You Will Needed Some Plugin For Save The Userdata");
+        logger.warn("Userdata get implement, maybe the back hand will not getting saved, i think");
         logger.warn("You Will Needed A AI Mob Plugin, You Can Install The AI Mob Plugin");
         logger.warn("The Sand,Gravel,Red Sand Not Falling, because We Not Yet Implemented, We will implement later");
         logger.warn("For Production Use You Will Need A Plugin That Requires Spawn Point,Save Userdata,Etc");
-        logger.warn("World Generation Need Reimplemented because that Noise Make Cahotic, You can start contribute By open this link: https://github.com/COXKPER/NeonCopper");
         Random rand = new Random();
         int number = rand.nextInt(10000) + 1;
 
@@ -161,6 +166,7 @@ public class Main {
             logger.info("Selamat Atas Pelantikan Pak Prabowo");
         }
         MinecraftServer minecraftServer = MinecraftServer.init();
+        MinestomFluids.init();
         PluginLoader.loadPlugins(new File("plugins"));
         try {
             if (!Files.exists(worldFolder)) {
@@ -252,16 +258,19 @@ instanceContainer.setGenerator(unit -> {
             player.setRespawnPoint(new Pos(0, 100, 0));
        });
 
+
+        globalEventHandler.addChild(MinestomFluids.events());
+
         globalEventHandler.addListener(PlayerDisconnectEvent.class, event -> {
             var player = event.getPlayer();
             logger.info("User {} Disconnected From Server ", player.getUsername());
+            Userdata.save(event.getPlayer());
         });
         globalEventHandler.addListener(AsyncPlayerPreLoginEvent.class, event -> {
-            
             int onlinePlayers = MinecraftServer.getConnectionManager().getOnlinePlayers().size();
             if(maxPlayers > -1 &&
                     onlinePlayers > maxPlayers) {
-               event.getConnection().kick(Component.text("§cThe server is full"));
+               event.getConnection().kick(Component.text("§cThe server is so popular"));
             }
         });
 
@@ -294,12 +303,12 @@ instanceContainer.setGenerator(unit -> {
         globalEventHandler.addListener(PlayerBlockBreakEvent.class, event -> {
             Player player = event.getPlayer();
         
-            // ❌ If Creative, skip dropping the item
+            //  If Creative, skip dropping the item
             if (player.getGameMode() == GameMode.CREATIVE) {
                 return;
             }
         
-            // ✅ Not creative, drop item
+            //  Not creative, drop item
             var material = event.getBlock().registry().material();
             if (material != null) {
                 var itemStack = ItemStack.of(material);
@@ -360,6 +369,7 @@ instanceContainer.setGenerator(unit -> {
         // Start the server on that port same as server properties
         minecraftServer.setBrandName("Copper");
         minecraftServer.start("0.0.0.0", port);
+        OpenToLAN.open();
         // Load Copper Terminal
         new CopperTerminalConsole().start();
     }

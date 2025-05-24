@@ -85,6 +85,18 @@
         <version>1.18.38</version>
         <scope>provided</scope>
     </dependency>
+
+        <dependency>
+        <groupId>com.github.TogAr2</groupId>
+        <artifactId>MinestomFluids</artifactId>
+        <version>00d73898c3</version>
+    </dependency>
+
+    <dependency>
+    <groupId>net.goldenstack</groupId>
+    <artifactId>window</artifactId>
+    <version>1.1</version>
+</dependency>
     </dependencies>
 
     <build>
