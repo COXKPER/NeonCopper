@@ -20,7 +20,7 @@ public static void save(Player player) {
         out.writeFloat(pos.pitch());
         out.writeUTF(player.getInstance().getDimensionName());
 
-        InventoryHandler.save(player, out); // << ADD THIS
+        InventoryHandler.save(player, out); 
     } catch (IOException e) {
         System.err.println("Failed to save: " + e.getMessage());
     }
@@ -41,7 +41,7 @@ public static void load(Player player, Instance instance) {
 
         player.setInstance(instance, new Pos(x, y, z, yaw, pitch));
 
-        InventoryHandler.load(player, in); // << ADD THIS
+        InventoryHandler.load(player, in); 
     } catch (IOException e) {
         System.err.println("Failed to load: " + e.getMessage());
     }
