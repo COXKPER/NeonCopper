@@ -35,6 +35,7 @@ public class PluginLoader {
     }
 
     public static void loadPlugins(File pluginDir) {
+        logger.info("Starting plugins.");
         if (!pluginDir.exists() && !pluginDir.mkdirs()) {
             logger.error("Failed to create plugins folder.");
             return;

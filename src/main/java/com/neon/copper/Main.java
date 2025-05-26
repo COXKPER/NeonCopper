@@ -84,13 +84,14 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minestom.server.event.player.PlayerSpawnEvent;
-
+import net.minestom.server.event.player.PlayerChatEvent;
+import java.time.LocalDate;
 
 
 public class Main {
     private final Map<UUID, JsonObject> preloadedData = new ConcurrentHashMap<>();
     private final Path dataDir = Path.of("userdata");
-    private static final String SERVER_VERSION = "1.3.1";
+    private static final String SERVER_VERSION = "1.3.2";
      private static final Set<Point> trackedFallingBlocks = new HashSet<>();
      private static final Logger logger = LogManager.getLogger(Main.class);
      private static final Map<UUID, JsonObject> preloadData = new ConcurrentHashMap<>();
@@ -107,7 +108,9 @@ public class Main {
                 System.exit(1);
             }
         }
+        logger.info("Starting logger rotator.");
         LogRotator.hook();
+        logger.info("Starting configuration and permission.");
         Permission permissionManager = new Permission();
         ServerConfig config = new ServerConfig("server.properties");
         String motd         = config.get("motd");
@@ -148,29 +151,26 @@ public class Main {
 
         System.setProperty("minestom.chunk-view-distance", String.valueOf(viewDistance));
         System.setProperty("minestom.use-new-chunk-sending", "true");
-
+        System.setProperty("minestom.terminal.disabled", "false");
         System.setProperty("minestom.new-chunk-sending-count-per-interval", "50");
         System.setProperty("minestom.new-chunk-sending-send-interval", "1");
         Path worldFolder = Paths.get("./world");
         Path polarWorldPath = worldFolder.resolve("overworld.mca");
         logger.info("Copper Server By COXPER Corporation");
-        logger.warn("Userdata Implemented, but sometime It get error i think.");
-        logger.warn("You Will Needed A AI Mob Plugin, You Can Install The AI Mob Plugin");
-        logger.warn("The Sand,Gravel,Red Sand Not Falling, because We Not Yet Implemented, We will implement later");
-        Random rand = new Random();
-        int number = rand.nextInt(10000) + 1;
-
-        if (number == 10) {
-            logger.info("Buat Orang Indo: Arapa Putra Kontol");
-            logger.info("Selamat Atas Pelantikan Pak Prabowo");
-        }
+        logger.warn("This is very light server and we forget implement ai and a gravity, try a ai plugin!");
+            LocalDate today = LocalDate.now();
+            if (today.getMonthValue() == 5 && today.getDayOfMonth() == 27) {
+                // Send secret message to player
+                logger.info("27 May Easter Egg");
+                logger.info("Kami Dari, 27 Bulan Mei Bulan mei, ayo dong bantai kami, kalo elo punya nyali");
+            }
         MinecraftServer minecraftServer = MinecraftServer.init();
         MinestomFluids.init();
         PluginLoader.loadPlugins(new File("plugins"));
         try {
             if (!Files.exists(worldFolder)) {
                 Files.createDirectory(worldFolder);
-                logger.info("World Not Exist, Making New World");
+                logger.info("Generating");
             }
         } catch (Exception e) {
             logger.error("Failed to create world folder: " + e.getMessage());
@@ -182,7 +182,7 @@ public class Main {
         MinecraftServer.getCommandManager().setUnknownCommandCallback((sender, command) -> {
             sender.sendMessage("§cUnknown command.");
         });
-        System.setProperty("minestom.terminal.disabled", "false");
+        
 
 
         // Create the instance
@@ -193,7 +193,7 @@ public class Main {
             instanceContainer.setChunkLoader(new PolarLoader(polarWorldPath));
             logger.info("Loading World");
         } else {
-            logger.info("Setting Up Chunk Generation");
+            logger.info("Setting Up World");
         }
 
         } catch (IOException e) {
@@ -239,6 +239,7 @@ instanceContainer.setGenerator(unit -> {
             if ( e.isCancelled() ) return;
             logger.info("{} issued command: {}", e.getPlayer().getUsername(), e.getCommand());
         }).setPriority(Integer.MAX_VALUE);
+        instanceContainer.setChunkSupplier(LightingChunk::new);
 
         // default commands
         MinecraftServer.getCommandManager().register(new StopCommand());
@@ -262,7 +263,7 @@ instanceContainer.setGenerator(unit -> {
 
         globalEventHandler.addListener(PlayerDisconnectEvent.class, event -> {
             var player = event.getPlayer();
-            logger.info("User {} Disconnected From Server ", player.getUsername());
+            logger.info("{} Disconnected From Server ", player.getUsername());
             Userdata.save(event.getPlayer());
         });
         globalEventHandler.addListener(AsyncPlayerPreLoginEvent.class, event -> {
@@ -275,18 +276,21 @@ instanceContainer.setGenerator(unit -> {
 
         globalEventHandler.addListener(PlayerSpawnEvent.class, event -> {
             Player player = event.getPlayer();
-            player.scheduleNextTick(entity -> {
-                // You can cast 'entity' back to 'Player' if needed, though often not necessary
-                // since 'player' is already available and the same object.
-                Userdata.load((Player) entity, instanceContainer);
-            });
+            Userdata.load(player, instanceContainer);
+        });
+
+        globalEventHandler.addListener(PlayerChatEvent.class, event -> {
+            String username = event.getPlayer().getUsername();
+            String message = event.getRawMessage();
+
+            logger.info("[ " + username + " ]: " + message);
         });
 
 
 
         globalEventHandler.addListener(PlayerSkinInitEvent.class, event -> {
             var player = event.getPlayer();
-            logger.info("User {} Connected To The Server", player.getUsername());
+            logger.info("{} Connected To The Server", player.getUsername());
         });
         try {
             BufferedImage image = ImageIO.read(new File("./server-icon.png")); // Use vanilla file name

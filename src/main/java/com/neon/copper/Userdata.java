@@ -39,7 +39,13 @@ public static void load(Player player, Instance instance) {
         float pitch = in.readFloat();
         String dimension = in.readUTF();
 
-        player.setInstance(instance, new Pos(x, y, z, yaw, pitch));
+if (player.getInstance() != instance) {
+    player.setInstance(instance, new Pos(x, y, z, yaw, pitch));
+} else {
+    player.teleport(new Pos(x, y, z, yaw, pitch));
+}
+
+
 
         InventoryHandler.load(player, in); 
     } catch (IOException e) {
