@@ -2,7 +2,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.neon.copper</groupId>
     <artifactId>Copper</artifactId>
-    <version>SNAPSHOT</version>
+    <version>1</version>
 
     <properties>
         <java.version>21</java.version> <!--Minestom has a minimum Java version of 21-->
