@@ -4,18 +4,19 @@ import java.io.*;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.util.*;
 import java.util.jar.JarFile;
 import java.util.jar.JarEntry;
-import java.util.Properties;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import java.util.ArrayList;
-import java.util.List;
 
 public class PluginLoader {
     private static final Logger logger = LogManager.getLogger(PluginLoader.class);
-    public static final int SUPPORTED_API_LEVEL = 4;
-    public static final List<PluginInfo> loadedPlugins = new ArrayList<>();
+    public static final int SUPPORTED_API_LEVEL = 1217;
+
+    // Thread-safe list
+    public static final List<PluginInfo> loadedPlugins = Collections.synchronizedList(new ArrayList<>());
 
     public static class PluginInfo {
         public final String name;
@@ -41,61 +42,77 @@ public class PluginLoader {
             return;
         }
 
-        File[] jars = pluginDir.listFiles((dir, name) -> name.endsWith(".jar"));
+        File[] jars = pluginDir.listFiles((dir, name) -> name.toLowerCase().endsWith(".jar"));
         if (jars == null || jars.length == 0) {
             logger.warn("No plugins found.");
             return;
         }
 
         for (File jar : jars) {
-            try (JarFile jarFile = new JarFile(jar)) {
+            logger.info("Loading plugin: " + jar.getName());
 
+            try (JarFile jarFile = new JarFile(jar)) {
                 JarEntry entry = jarFile.getJarEntry("neoplugin.yml");
                 if (entry == null) {
-                    logger.error("neoplugin.yml missing in " + jar.getName());
+                    logger.error("Missing neoplugin.yml in " + jar.getName());
                     continue;
                 }
 
-                InputStream is = jarFile.getInputStream(entry);
+                // Load properties
                 Properties props = new Properties();
-                props.load(is);
+                try (InputStream is = jarFile.getInputStream(entry)) {
+                    props.load(is);
+                }
 
                 String mainClassName = props.getProperty("main");
                 String pluginName = props.getProperty("name", "Unknown");
                 String pluginVersion = props.getProperty("version", "N/A");
                 String pluginAuthor = props.getProperty("author", "Unknown");
-                int apiLevel = Integer.parseInt(props.getProperty("api", "0"));
+
+                int apiLevel;
+                try {
+                    apiLevel = Integer.parseInt(props.getProperty("api", "0"));
+                } catch (NumberFormatException e) {
+                    logger.error("Invalid API level in " + pluginName);
+                    continue;
+                }
 
                 if (apiLevel != SUPPORTED_API_LEVEL) {
                     logger.error("Incompatible API level in plugin " + pluginName + ": " + apiLevel + " (required: " + SUPPORTED_API_LEVEL + ")");
                     continue;
                 }
 
-                URLClassLoader loader = new URLClassLoader(
-                    new URL[]{jar.toURI().toURL()},
-                    PluginLoader.class.getClassLoader()
-                );
+                // Isolate each plugin's class loader
+                try (URLClassLoader loader = new URLClassLoader(
+                        new URL[]{jar.toURI().toURL()},
+                        PluginLoader.class.getClassLoader())) {
 
-                Class<?> pluginClass = loader.loadClass(mainClassName);
-                Object pluginInstance = pluginClass.getDeclaredConstructor().newInstance();
+                    Class<?> pluginClass = loader.loadClass(mainClassName);
+                    Object pluginInstance = pluginClass.getDeclaredConstructor().newInstance();
 
-                try {
-                    Method onEnable = pluginClass.getMethod("onEnable");
-                    onEnable.invoke(pluginInstance);
-                    logger.info("Loaded plugin: " + pluginName + " v" + pluginVersion);
-                    loadedPlugins.add(new PluginInfo(pluginName, pluginVersion, pluginAuthor));
-                } catch (NoSuchMethodException e) {
-                    logger.error("Plugin loaded but no onEnable() found in: " + mainClassName);
+                    // Call onEnable() if exists
+                    try {
+                        Method onEnable = pluginClass.getMethod("onEnable");
+                        onEnable.invoke(pluginInstance);
+                        logger.info("Loaded plugin: " + pluginName + " v" + pluginVersion);
+                        loadedPlugins.add(new PluginInfo(pluginName, pluginVersion, pluginAuthor));
+                    } catch (NoSuchMethodException e) {
+                        logger.error("Plugin loaded but no onEnable() found in: " + mainClassName);
+                    }
+
+                } catch (Exception e) {
+                    logger.error("Error loading plugin class from: " + jar.getName(), e);
                 }
 
+            } catch (IOException e) {
+                logger.error("Failed to read plugin jar: " + jar.getName(), e);
             } catch (Exception e) {
-                logger.error("Failed to load plugin: " + jar.getName());
-                logger.error(e);
+                logger.error("Unexpected error while loading plugin: " + jar.getName(), e);
             }
         }
     }
 
-    // Custom OutputStream to redirect println to logger
+    // Redirect System.out and System.err
     private static class LoggingOutputStream extends OutputStream {
         private final Logger logger;
         private final boolean isError;

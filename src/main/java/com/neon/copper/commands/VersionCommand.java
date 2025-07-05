@@ -7,7 +7,7 @@ import net.minestom.server.entity.Player;
 public class VersionCommand extends Command {
 
     private static final String SERVER_NAME = "Copper";
-    private static final String SERVER_VERSION = "1.3.2"; 
+    private static final String SERVER_VERSION = "1.4.1"; 
 
     public VersionCommand() {
         super("version", "ver");

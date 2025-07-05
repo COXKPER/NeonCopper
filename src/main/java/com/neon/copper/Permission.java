@@ -1,73 +1,100 @@
 package com.neon.copper;
 
+import com.google.gson.*;
+import com.google.gson.reflect.TypeToken;
+
 import java.io.*;
+import java.lang.reflect.Type;
 import java.nio.file.*;
 import java.util.*;
-import org.yaml.snakeyaml.Yaml;
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class Permission {
-    private static final String FILE_NAME = "permission.yml";
-    private final Map<String, String> permissionMap = new HashMap<>();
     private static final Logger logger = LogManager.getLogger(Permission.class);
+    private static final String FILE_NAME = "permission.json";
+    private static final Set<String> VALID_LEVELS = Set.of("member", "operator");
 
-    // Load on creation
+    private final Map<String, String> permissionMap = new ConcurrentHashMap<>();
+    private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
+
     public Permission() {
         loadFromFile();
     }
 
-    // Load from permission.yml
-    private void loadFromFile() {
-        try {
-            File file = new File(FILE_NAME);
-            if (!file.exists()) return;
+    /** Load permissions from JSON file */
+    private synchronized void loadFromFile() {
+        Path path = Paths.get(FILE_NAME);
+        if (!Files.exists(path)) {
+            logger.warn("Permission file not found: " + FILE_NAME);
+            return;
+        }
 
-            Yaml yaml = new Yaml();
-            Map<String, Object> data = yaml.load(new FileReader(file));
-            if (data != null && data.containsKey("permissions")) {
-                Map<String, Object> perms = (Map<String, Object>) data.get("permissions");
-                for (Map.Entry<String, Object> entry : perms.entrySet()) {
-                    permissionMap.put(entry.getKey(), entry.getValue().toString());
+        try (Reader reader = Files.newBufferedReader(path)) {
+            Type mapType = new TypeToken<Map<String, String>>() {}.getType();
+            Map<String, String> rawMap = gson.fromJson(reader, mapType);
+
+            permissionMap.clear();
+            for (var entry : rawMap.entrySet()) {
+                String level = entry.getValue().toLowerCase();
+                if (VALID_LEVELS.contains(level)) {
+                    permissionMap.put(entry.getKey(), level);
+                } else {
+                    logger.warn("Invalid permission level for " + entry.getKey() + ": " + entry.getValue());
                 }
             }
-        } catch (IOException e) {
-            logger.error("Failed to load permission.yml: " + e.getMessage());
+        } catch (IOException | JsonSyntaxException e) {
+            logger.error("Failed to load " + FILE_NAME + ": " + e.getMessage(), e);
         }
     }
 
-    // Save to file
-    public void saveToFile() {
+    /** Save permissions to JSON file */
+    public synchronized void saveToFile() {
+        Path path = Paths.get(FILE_NAME);
         try {
-            Map<String, Object> output = new LinkedHashMap<>();
-            output.put("permissions", permissionMap);
+            // Backup first
+            if (Files.exists(path)) {
+                Files.copy(path, Paths.get(FILE_NAME + ".bak"), StandardCopyOption.REPLACE_EXISTING);
+            }
 
-            Yaml yaml = new Yaml();
-            FileWriter writer = new FileWriter(FILE_NAME);
-            yaml.dump(output, writer);
-            writer.close();
+            try (Writer writer = Files.newBufferedWriter(path)) {
+                gson.toJson(new TreeMap<>(permissionMap), writer);
+            }
         } catch (IOException e) {
-            logger.error("Failed to save permission.yml: " + e.getMessage());
+            logger.error("Failed to save " + FILE_NAME + ": " + e.getMessage(), e);
         }
     }
 
-    // Set permission
-    public void setPermission(String uuid, String level) {
-        permissionMap.put(uuid, level);
+    /** Set permission with optional save */
+    public void setPermission(String uuid, String level, boolean saveNow) {
+        String lower = level.toLowerCase();
+        if (!VALID_LEVELS.contains(lower)) {
+            logger.warn("Rejected invalid permission level: " + level);
+            return;
+        }
+
+        permissionMap.put(uuid, lower);
+        if (saveNow) saveToFile();
     }
 
-    // Chainable access check
+    public void setPermission(String uuid, String level) {
+        setPermission(uuid, level, false);
+    }
+
+    /** Check permission access */
     public Access checkUuid(String uuid) {
         String level = permissionMap.getOrDefault(uuid, "member");
-        return new Access(level.equalsIgnoreCase("operator"));
+        return new Access(level.equals("operator"));
     }
 
-    // Inner access class
+    /** Access wrapper class */
     public static class Access {
         private final boolean hasAccess;
 
-        public Access(boolean access) {
-            this.hasAccess = access;
+        public Access(boolean hasAccess) {
+            this.hasAccess = hasAccess;
         }
 
         public boolean hasAccess() {

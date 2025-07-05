@@ -86,16 +86,58 @@ import java.util.concurrent.ConcurrentHashMap;
 import net.minestom.server.event.player.PlayerSpawnEvent;
 import net.minestom.server.event.player.PlayerChatEvent;
 import java.time.LocalDate;
+import java.nio.file.StandardCopyOption;
+import java.io.UncheckedIOException;
+import java.util.Comparator;
+
+
 
 
 public class Main {
     private final Map<UUID, JsonObject> preloadedData = new ConcurrentHashMap<>();
     private final Path dataDir = Path.of("userdata");
-    private static final String SERVER_VERSION = "1.3.2";
+    private static final String SERVER_VERSION = "1.4.1";
      private static final Set<Point> trackedFallingBlocks = new HashSet<>();
      private static final Logger logger = LogManager.getLogger(Main.class);
      private static final Map<UUID, JsonObject> preloadData = new ConcurrentHashMap<>();
      private static String cachedFavicon;
+
+private static void copyFolder(Path source, Path target) throws IOException {
+    Files.walk(source).forEach(path -> {
+        try {
+            Path destination = target.resolve(source.relativize(path));
+            if (Files.isDirectory(path)) {
+                Files.createDirectories(destination);
+            } else {
+                Files.copy(path, destination, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    });
+}
+
+private static void restoreFolder(Path backup, Path target) throws IOException {
+    deleteRecursively(target);
+    copyFolder(backup, target);
+    logger.info("Restored world from full folder backup.");
+}
+
+private static void deleteRecursively(Path path) throws IOException {
+    if (Files.notExists(path)) return;
+    Files.walk(path)
+         .sorted(Comparator.reverseOrder())
+         .forEach(p -> {
+             try {
+                 Files.deleteIfExists(p);
+             } catch (IOException e) {
+                 throw new RuntimeException("Failed to delete: " + p, e);
+             }
+         });
+}
+
+
+
 
     public static void main(String[] args) throws IOException{
         File logDir = new File("logs");
@@ -188,17 +230,83 @@ public class Main {
         // Create the instance
         InstanceManager instanceManager = MinecraftServer.getInstanceManager();
         InstanceContainer instanceContainer = instanceManager.createInstanceContainer();
-        try {
-                    if (Files.exists(polarWorldPath)) {
-            instanceContainer.setChunkLoader(new PolarLoader(polarWorldPath));
-            logger.info("Loading World");
-        } else {
-            logger.info("Setting Up World");
+try {
+    if (Files.exists(polarWorldPath)) {
+        // Backup the .mca file only if not already backed up
+        Path mcaFile = polarWorldPath.resolve("overworld.mca");
+        Path mcaBackup = polarWorldPath.resolve("overworld.mca.bak");
+
+        if (Files.exists(mcaFile) && !Files.exists(mcaBackup)) {
+            Files.copy(mcaFile, mcaBackup, StandardCopyOption.REPLACE_EXISTING);
+            logger.info("Created MCA backup at " + mcaBackup);
         }
 
-        } catch (IOException e) {
-          logger.error(e);
+        // Backup full folder to folder.bak if not already backed up
+        Path backupPath = Paths.get(polarWorldPath + ".bak");
+        if (!Files.exists(backupPath)) {
+            copyFolder(polarWorldPath, backupPath);
+            logger.info("Backed up world folder to " + backupPath);
+        } else {
+            logger.warn("World folder backup already exists: " + backupPath);
         }
+
+        try {
+            // First attempt to load world
+            instanceContainer.setChunkLoader(new PolarLoader(polarWorldPath));
+            logger.info("World loaded successfully.");
+
+        } catch (Exception loadException) {
+            logger.warn("Failed to load world, trying MCA recovery...", loadException);
+
+            // Try MCA restore
+            if (Files.exists(mcaBackup)) {
+                try {
+                    Files.deleteIfExists(mcaFile);
+                    Files.copy(mcaBackup, mcaFile, StandardCopyOption.REPLACE_EXISTING);
+                    logger.info("Restored 'overworld.mca' from backup.");
+
+                    // Retry loading
+                    instanceContainer.setChunkLoader(new PolarLoader(polarWorldPath));
+                    logger.info("Successfully loaded world after MCA recovery.");
+                    return; // successful, stop here
+
+                } catch (IOException retryEx) {
+                    logger.error("MCA recovery failed", retryEx);
+                }
+            } else {
+                logger.error("No 'overworld.mca.bak' found.");
+            }
+
+            // Try full folder restore
+            logger.warn("Trying full folder restore from backup...");
+            try {
+                restoreFolder(backupPath, polarWorldPath);
+                instanceContainer.setChunkLoader(new PolarLoader(polarWorldPath));
+                logger.info("Successfully loaded world after full folder restore.");
+            } catch (Exception restoreEx) {
+                logger.error("Full restore failed, deleting world folder...", restoreEx);
+
+                // All recovery failed, delete world
+                deleteRecursively(polarWorldPath);
+                logger.warn("Deleted corrupted world folder. A fresh world will be created.");
+            }
+        }
+
+    } else {
+        logger.info("World folder not found. Creating new world...");
+    }
+
+    // If we reach here, it's either a new world or after deletion
+    instanceContainer.setChunkLoader(new PolarLoader(polarWorldPath));
+    logger.info("Created or reset world successfully.");
+
+} catch (Exception e) {
+    logger.error("World setup failed", e);
+}
+
+
+
+
 
         // Set the ChunkGenerator
 instanceContainer.setGenerator(unit -> {
@@ -265,6 +373,11 @@ instanceContainer.setGenerator(unit -> {
             var player = event.getPlayer();
             logger.info("{} Disconnected From Server ", player.getUsername());
             Userdata.save(event.getPlayer());
+            String message = "§c" + player.getUsername() + " left the game";
+
+            MinecraftServer.getConnectionManager().getOnlinePlayers().forEach(p -> {
+                p.sendMessage(Component.text(message));
+            });
         });
         globalEventHandler.addListener(AsyncPlayerPreLoginEvent.class, event -> {
             int onlinePlayers = MinecraftServer.getConnectionManager().getOnlinePlayers().size();
@@ -277,6 +390,11 @@ instanceContainer.setGenerator(unit -> {
         globalEventHandler.addListener(PlayerSpawnEvent.class, event -> {
             Player player = event.getPlayer();
             Userdata.load(player, instanceContainer);
+            String message = "§a" + player.getUsername() + " joined the game";
+    
+            MinecraftServer.getConnectionManager().getOnlinePlayers().forEach(p -> {
+                p.sendMessage(Component.text(message));
+            });
         });
 
         globalEventHandler.addListener(PlayerChatEvent.class, event -> {
