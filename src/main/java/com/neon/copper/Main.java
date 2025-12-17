@@ -60,6 +60,7 @@ import net.minestom.server.instance.LightingChunk;
 import net.minestom.server.item.Material;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.event.player.PlayerBlockBreakEvent;
+import net.minestom.server.event.player.PlayerBlockPlaceEvent;
 import net.minestom.server.event.EventNode;
 import net.minestom.server.event.Event;
 import net.minestom.server.event.EventFilter;
@@ -77,6 +78,7 @@ import java.util.HashSet;
 import com.neon.copper.PluginLoader;
 import com.neon.copper.commands.PluginListCommand;
 import com.neon.copper.commands.VersionCommand;
+import com.neon.copper.mobs.SimpleZombie;
 import com.neon.copper.LogRotator;
 import lombok.*;
 import com.google.gson.*;
@@ -199,7 +201,7 @@ private static void deleteRecursively(Path path) throws IOException {
         Path worldFolder = Paths.get("./world");
         Path polarWorldPath = worldFolder.resolve("overworld.mca");
         logger.info("Copper Server By COXPER Corporation");
-        logger.warn("This is very light server and we forget implement ai and a gravity, try a ai plugin!");
+        // logger.warn("This is very light server and we forget implement ai and a gravity, try a ai plugin!");
             LocalDate today = LocalDate.now();
             if (today.getMonthValue() == 5 && today.getDayOfMonth() == 27) {
                 // Send secret message to player
@@ -337,6 +339,25 @@ instanceContainer.setGenerator(unit -> {
 
             // Top layer - Grass block
             unit.modifier().setBlock(columnStart.withY(surfaceHeight - 1), Block.GRASS_BLOCK);
+
+            // Simple Tree Generation (1% chance)
+            if (new Random().nextInt(100) == 0) {
+                int y = surfaceHeight;
+                // Trunk
+                for (int i = 0; i < 4; i++) {
+                    unit.modifier().setBlock(columnStart.withY(y + i), Block.OAK_LOG);
+                }
+                // Leaves
+                for (int lx = -2; lx <= 2; lx++) {
+                    for (int lz = -2; lz <= 2; lz++) {
+                        for (int ly = 2; ly <= 4; ly++) {
+                            if (Math.abs(lx) + Math.abs(lz) <= 3) {
+                                unit.modifier().setBlock(columnStart.add(lx, ly, lz).withY(y + ly), Block.OAK_LEAVES);
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 });
@@ -355,6 +376,17 @@ instanceContainer.setGenerator(unit -> {
         MinecraftServer.getCommandManager().register(new GamemodeCommand(permissionManager));
         MinecraftServer.getCommandManager().register(new PluginListCommand());
         MinecraftServer.getCommandManager().register(new VersionCommand());
+
+        MinecraftServer.getCommandManager().register(
+            new Command("summonzombie") {{
+                setDefaultExecutor((sender, context) -> {
+                    if (sender instanceof Player player) {
+                        new SimpleZombie().setInstance(player.getInstance(), player.getPosition());
+                        player.sendMessage("Spawned Zombie!");
+                    }
+                });
+            }}
+        );
 
 
 
@@ -448,6 +480,19 @@ instanceContainer.setGenerator(unit -> {
                 itemEntity.setInstance(event.getInstance(), event.getBlockPosition().add(0.5, 0.5, 0.5));
                 itemEntity.setPickupDelay(Duration.ofMillis(500));
             }
+
+            // Trigger falling block check for the block above
+            Point above = event.getBlockPosition().add(0, 1, 0);
+            if (trackedFallingBlocks.contains(above) ||
+               Set.of(Material.SAND, Material.GRAVEL, Material.RED_SAND).contains(event.getInstance().getBlock(above).registry().material())) {
+                trackedFallingBlocks.add(above);
+            }
+        });
+
+        globalEventHandler.addListener(PlayerBlockPlaceEvent.class, event -> {
+             if (Set.of(Material.SAND, Material.GRAVEL, Material.RED_SAND).contains(event.getBlock().registry().material())) {
+                 trackedFallingBlocks.add(event.getBlockPosition());
+             }
         });
 
 
@@ -479,15 +524,28 @@ instanceContainer.setGenerator(unit -> {
 
         scheduler.buildTask(() -> {
             for (Instance instance : MinecraftServer.getInstanceManager().getInstances()) {
-                for (Point pos : trackedFallingBlocks) {
+                // Use a copy to avoid concurrent modification exceptions if we modify the set
+                Set<Point> currentBlocks = new HashSet<>(trackedFallingBlocks);
+                for (Point pos : currentBlocks) {
                     Material block = instance.getBlock(pos).registry().material();
-                    if (fallingBlocks.contains(block) && instance.getBlock(pos.withY(pos.y() - 1)).isAir()) {
-                        instance.setBlock(pos, Block.AIR);
-                        // Here you would spawn a custom falling entity, if implemented.
+                    if (fallingBlocks.contains(block)) {
+                         Point below = pos.withY(pos.y() - 1);
+                         if (instance.getBlock(below).isAir()) {
+                             instance.setBlock(pos, Block.AIR);
+                             instance.setBlock(below, Block.fromNamespaceId(block.namespace().asString()));
+                             trackedFallingBlocks.remove(pos);
+                             trackedFallingBlocks.add(below);
+                         } else {
+                             // Landed
+                             trackedFallingBlocks.remove(pos);
+                         }
+                    } else {
+                        // Block changed or removed
+                        trackedFallingBlocks.remove(pos);
                     }
                 }
             }
-        }).repeat(TaskSchedule.millis(50)).schedule();
+        }).repeat(TaskSchedule.millis(100)).schedule();
 
        
         if (onlineMode) {

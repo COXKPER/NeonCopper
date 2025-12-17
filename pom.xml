@@ -22,7 +22,7 @@
     <dependency>
         <groupId>com.github.Minestom</groupId>
         <artifactId>Minestom</artifactId>
-        <version>1_21_6-SNAPSHOT</version>
+        <version>7135080bbc</version>
     </dependency>
         <dependency>
            <groupId>de.articdive</groupId>
@@ -94,7 +94,7 @@
         <dependency>
         <groupId>com.github.TogAr2</groupId>
         <artifactId>MinestomFluids</artifactId>
-        <version>00d73898c3</version>
+        <version>master-SNAPSHOT</version>
     </dependency>
 
     <dependency>

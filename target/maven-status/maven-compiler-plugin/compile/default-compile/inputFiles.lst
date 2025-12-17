@@ -1,0 +1,17 @@
+/app/src/main/java/com/neon/copper/CustomNoise.java
+/app/src/main/java/com/neon/copper/InventoryHandler.java
+/app/src/main/java/com/neon/copper/LogRotator.java
+/app/src/main/java/com/neon/copper/Main.java
+/app/src/main/java/com/neon/copper/PerlinNoise.java
+/app/src/main/java/com/neon/copper/Permission.java
+/app/src/main/java/com/neon/copper/PluginLoader.java
+/app/src/main/java/com/neon/copper/ServerConfig.java
+/app/src/main/java/com/neon/copper/Userdata.java
+/app/src/main/java/com/neon/copper/commands/GamemodeCommand.java
+/app/src/main/java/com/neon/copper/commands/PluginListCommand.java
+/app/src/main/java/com/neon/copper/commands/SetPermissionCommand.java
+/app/src/main/java/com/neon/copper/commands/StopCommand.java
+/app/src/main/java/com/neon/copper/commands/VersionCommand.java
+/app/src/main/java/com/neon/copper/mobs/SimpleZombie.java
+/app/src/main/java/com/neon/copper/terminal/CopperConsoleCommandCompleter.java
+/app/src/main/java/com/neon/copper/terminal/CopperTerminalConsole.java
