@@ -3,10 +3,6 @@ package com.neon.copper;
 
 import com.neon.copper.commands.TeleportCommand;
 import com.neon.copper.Userdata;
-import io.github.togar2.fluids.Fluid;
-import io.github.togar2.fluids.FluidState;
-import io.github.togar2.fluids.MinestomFluids;
-import io.github.togar2.fluids.WaterlogHandler;
 import net.minestom.server.extras.lan.OpenToLAN;
 import com.neon.copper.commands.StopCommand;
 import net.minestom.server.MinecraftServer;
@@ -221,7 +217,6 @@ private static void deleteRecursively(Path path) throws IOException {
             logger.error("It is strongly recommended to install a login authentication plugin with two-factor verification (2FA) for enhanced security.");
 
         }
-        MinestomFluids.init();
         PluginLoader.loadPlugins(new File("plugins"));
         try {
             if (!Files.exists(worldFolder)) {
@@ -418,8 +413,6 @@ instanceContainer.setGenerator(unit -> {
             player.setRespawnPoint(new Pos(0, 100, 0));
        });
 
-
-        globalEventHandler.addChild(MinestomFluids.events());
 
         globalEventHandler.addListener(PlayerDisconnectEvent.class, event -> {
             var player = event.getPlayer();
