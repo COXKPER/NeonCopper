@@ -1,5 +1,7 @@
 package com.neon.copper;
 
+
+import com.neon.copper.commands.TeleportCommand;
 import com.neon.copper.Userdata;
 import io.github.togar2.fluids.Fluid;
 import io.github.togar2.fluids.FluidState;
@@ -17,9 +19,9 @@ import net.minestom.server.instance.*;
 import net.minestom.server.instance.block.Block;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.coordinate.Point;
+import net.minestom.server.Auth;
 import com.neon.copper.CustomNoise;
 import com.neon.copper.terminal.CopperTerminalConsole;
-import net.minestom.server.extras.MojangAuth;
 import net.minestom.server.timer.SchedulerManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -39,7 +41,6 @@ import net.minestom.server.timer.TaskSchedule;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.neon.copper.ServerConfig;
-import net.minestom.server.ping.ResponseData;
 import net.minestom.server.event.player.AsyncPlayerPreLoginEvent;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -49,7 +50,6 @@ import java.util.Objects;
 import net.minestom.server.event.server.ServerListPingEvent;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import java.io.File;
-import net.minestom.server.extras.bungee.BungeeCordProxy;
 import java.time.Duration;
 import net.minestom.server.event.item.ItemDropEvent;
 import net.minestom.server.event.trait.PlayerEvent;
@@ -64,6 +64,7 @@ import net.minestom.server.event.EventNode;
 import net.minestom.server.event.Event;
 import net.minestom.server.event.EventFilter;
 import net.minestom.server.event.item.ItemDropEvent;
+import net.minestom.server.ping.Status;
 import net.minestom.server.entity.ItemEntity;
 import java.util.Random;
 import com.neon.copper.commands.SetPermissionCommand;
@@ -94,9 +95,10 @@ import java.util.Comparator;
 
 
 public class Main {
+    private static byte[] cachedFaviconBytes = null;
     private final Map<UUID, JsonObject> preloadedData = new ConcurrentHashMap<>();
     private final Path dataDir = Path.of("userdata");
-    private static final String SERVER_VERSION = "1.4.1";
+    private static final String SERVER_VERSION = "1.0.0";
      private static final Set<Point> trackedFallingBlocks = new HashSet<>();
      private static final Logger logger = LogManager.getLogger(Main.class);
      private static final Map<UUID, JsonObject> preloadData = new ConcurrentHashMap<>();
@@ -140,6 +142,7 @@ private static void deleteRecursively(Path path) throws IOException {
 
 
     public static void main(String[] args) throws IOException{
+        LoggingGuard.verifyLog4j();
         File logDir = new File("logs");
         if (!logDir.exists()) {
             boolean created = logDir.mkdirs();
@@ -155,12 +158,12 @@ private static void deleteRecursively(Path path) throws IOException {
         logger.info("Starting configuration and permission.");
         Permission permissionManager = new Permission();
         ServerConfig config = new ServerConfig("server.properties");
-        String motd         = config.get("motd");
-        int    maxPlayers   = Integer.parseInt(config.get("max-players"));
-        long   seed         = Long.parseLong(config.get("seed"));        
-        int    port         = Integer.parseInt(config.get("port"));
-        int    viewDistance = Integer.parseInt(config.get("view-distance"));
-        boolean onlineMode  = Boolean.parseBoolean(config.get("online-mode"));
+        String motd = config.get("motd");
+        int maxPlayers = Integer.parseInt(config.get("max-players"));
+        long seed = Long.parseLong(config.get("seed"));        
+        int port = Integer.parseInt(config.get("port"));
+        int viewDistance = Integer.parseInt(config.get("view-distance"));
+        boolean onlineMode = Boolean.parseBoolean(config.get("online-mode"));
 
 
         // Initialization
@@ -198,28 +201,39 @@ private static void deleteRecursively(Path path) throws IOException {
         System.setProperty("minestom.new-chunk-sending-send-interval", "1");
         Path worldFolder = Paths.get("./world");
         Path polarWorldPath = worldFolder.resolve("overworld.mca");
-        logger.info("Copper Server By COXPER Corporation");
-        logger.warn("This is very light server and we forget implement ai and a gravity, try a ai plugin!");
-            LocalDate today = LocalDate.now();
-            if (today.getMonthValue() == 5 && today.getDayOfMonth() == 27) {
-                // Send secret message to player
-                logger.info("27 May Easter Egg");
-                logger.info("Kami Dari, 27 Bulan Mei Bulan mei, ayo dong bantai kami, kalo elo punya nyali");
-            }
-        MinecraftServer minecraftServer = MinecraftServer.init();
+        logger.info("\u001B[31m    )                          ");
+        logger.info("\u001B[33m ( /(              )           ");
+        logger.info("\u001B[91m )\\(\\))   (      ( /( (      )  ");
+        logger.info("\u001B[93m((_)\\   ))\\ (   )\\(\\)))\\  ( /(  ");
+        logger.info("\u001B[33m _((_) /((_))\\ (_))/((_) )(_)) ");
+        logger.info("\u001B[31m| || |(_)) ((_)| |_  (_)((_)_  ");
+        logger.info("\u001B[33m| __ |/ -_)(_-<|  _| | |/ _` | ");
+        logger.info("\u001B[91m|_||_|\\___|/__/ \\__| |_|\\__,_| ");
+        logger.info("\u001B[0m                               ");
+        logger.info("Hestia Server");
+        MinecraftServer minecraftServer;
+        if (onlineMode) {
+            minecraftServer = MinecraftServer.init(new Auth.Online());
+        } else {
+            minecraftServer = MinecraftServer.init(new Auth.Offline());
+            logger.error("=== SECURITY ALERT: POTENTIAL VULNERABILITY DETECTED ===");
+            logger.error("Offline authentication mode detected. This configuration may allow unauthorized access using valid usernames.");
+            logger.error("It is strongly recommended to install a login authentication plugin with two-factor verification (2FA) for enhanced security.");
+
+        }
         MinestomFluids.init();
         PluginLoader.loadPlugins(new File("plugins"));
         try {
             if (!Files.exists(worldFolder)) {
                 Files.createDirectory(worldFolder);
-                logger.info("Generating");
+                logger.info("Generating Chunk By Chunk");
             }
         } catch (Exception e) {
             logger.error("Failed to create world folder: " + e.getMessage());
         }
         // CustomNoise noise = new CustomNoise(seed, 0.002, 10, 6, 0.4);
-        CustomNoise noise = new CustomNoise(seed, 0.002, 10, 6, 0.5);
-        logger.info("Starting Copper Server " + SERVER_VERSION);
+       CustomNoise noise = new CustomNoise(seed, 0.001953125, 10, 6, 0.5);
+        logger.info("Starting Hestia " + SERVER_VERSION);
 
         MinecraftServer.getCommandManager().setUnknownCommandCallback((sender, command) -> {
             sender.sendMessage("§cUnknown command.");
@@ -309,6 +323,7 @@ try {
 
 
         // Set the ChunkGenerator
+/*
 instanceContainer.setGenerator(unit -> {
     Point start = unit.absoluteStart();
     for (int x = 0; x < unit.size().x(); x++) {
@@ -318,7 +333,14 @@ instanceContainer.setGenerator(unit -> {
             // Adjust surface height to be higher than bedrock range
             int surfaceHeight = (int) noise.evaluateNoise(columnStart.x(), columnStart.z()) + 64;
             // zDebuging
-            // logger.info("Debug " + noise.evaluateNoise(columnStart.x(), columnStart.z()) + 64); // We Disable It Beacuse It Dev Only, Dont Edit This Or Your Commits Will Not Accepted
+                                if (args.length > 0) {
+            for (String arg : args) {
+                if (arg.equalsIgnoreCase("--debug")) {
+            logger.info("Debug " + noise.evaluateNoise(columnStart.x(), columnStart.z()) + 64);
+                        }
+                    }
+                }
+
 
             // Bedrock layer from -36 to -30
             for (int y = -64; y <= -43; y++) {
@@ -340,6 +362,34 @@ instanceContainer.setGenerator(unit -> {
         }
     }
 });
+*/
+instanceContainer.setGenerator(unit -> {
+    Point start = unit.absoluteStart();
+    for (int x = 0; x < unit.size().x(); x++) {
+        for (int z = 0; z < unit.size().z(); z++) {
+            Point columnStart = start.add(x, 0, z);
+            int surfaceHeight = (int) noise.evaluateNoise(columnStart.x(), columnStart.z()) + 64;
+
+            for (int y = -64; y <= surfaceHeight; y++) {
+                // Gua: kosongkan blok jika cave noise aktif
+                if (noise.isCave(columnStart.x(), y, columnStart.z())) {
+                    continue; // skip set block (jadi air kosong)
+                }
+
+                if (y <= -43) {
+                    unit.modifier().setBlock(columnStart.withY(y), Block.BEDROCK);
+                } else if (y < surfaceHeight - 3) {
+                    unit.modifier().setBlock(columnStart.withY(y), Block.STONE);
+                } else if (y < surfaceHeight - 1) {
+                    unit.modifier().setBlock(columnStart.withY(y), Block.DIRT);
+                } else if (y == surfaceHeight - 1) {
+                    unit.modifier().setBlock(columnStart.withY(y), Block.GRASS_BLOCK);
+                }
+            }
+        }
+    }
+});
+
 
 
 
@@ -355,6 +405,8 @@ instanceContainer.setGenerator(unit -> {
         MinecraftServer.getCommandManager().register(new GamemodeCommand(permissionManager));
         MinecraftServer.getCommandManager().register(new PluginListCommand());
         MinecraftServer.getCommandManager().register(new VersionCommand());
+        MinecraftServer.getCommandManager().register(new TeleportCommand(permissionManager));
+
 
 
 
@@ -410,27 +462,42 @@ instanceContainer.setGenerator(unit -> {
             var player = event.getPlayer();
             logger.info("{} Connected To The Server", player.getUsername());
         });
-        try {
-            BufferedImage image = ImageIO.read(new File("./server-icon.png")); // Use vanilla file name
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            ImageIO.write(image, "png", outputStream);
-            cachedFavicon = Base64.getEncoder().encodeToString(outputStream.toByteArray());
-            outputStream.close();
-        } catch (IOException e) {
-            cachedFavicon = "";
-            logger.error("Server Icon Not Found, Using Default");
-        }
+// field baru di class:
 
-        globalEventHandler.addListener(ServerListPingEvent.class, event -> {
-            int onlinePlayers = MinecraftServer.getConnectionManager().getOnlinePlayers().size();
-            ResponseData responseData = event.getResponseData();
-            responseData.setOnline(onlinePlayers);
-            responseData.setMaxPlayer(maxPlayers);
-            responseData.setDescription(LegacyComponentSerializer.legacyAmpersand().deserialize(motd));
-            if (cachedFavicon != null) {
-               event.getResponseData().setFavicon(cachedFavicon);
-            }
-        });
+
+// saat membaca file:
+try {
+    BufferedImage image = ImageIO.read(new File("./server-icon.png"));
+    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+    ImageIO.write(image, "png", outputStream);
+    cachedFaviconBytes = outputStream.toByteArray(); // <-- raw PNG bytes
+    outputStream.close();
+} catch (IOException e) {
+    cachedFaviconBytes = null;
+    logger.error("Server Icon Not Found, Using Default");
+}
+
+
+globalEventHandler.addListener(ServerListPingEvent.class, event -> {
+    int onlinePlayers = MinecraftServer.getConnectionManager().getOnlinePlayerCount();
+
+    Status.Builder statusBuilder = Status.builder()
+        .description(LegacyComponentSerializer.legacyAmpersand().deserialize(motd));
+
+    // set favicon jika ada (builder menerima byte[])
+    if (cachedFaviconBytes != null && cachedFaviconBytes.length > 0) {
+        statusBuilder = statusBuilder.favicon(cachedFaviconBytes);
+    }
+
+    // set player counts (bisa pakai builder PlayerInfo atau helper playerInfo(int,int))
+    statusBuilder = statusBuilder.playerInfo(Status.PlayerInfo.builder()
+            .onlinePlayers(onlinePlayers)
+            .maxPlayers(maxPlayers)
+            .build());
+    // atau lebih singkat: statusBuilder.playerInfo(onlinePlayers, maxPlayers);
+
+    event.setStatus(statusBuilder.build());
+});
 
         globalEventHandler.addListener(PlayerBlockBreakEvent.class, event -> {
             Player player = event.getPlayer();
@@ -488,18 +555,10 @@ instanceContainer.setGenerator(unit -> {
                 }
             }
         }).repeat(TaskSchedule.millis(50)).schedule();
-
-       
-        if (onlineMode) {
-            MojangAuth.init();
-        } else {
-            logger.error("The Online Mode Is Disabled, You Will Get A Risk");
-            logger.error("Install Login Plugin For More Security and 2FA");
-        }
         
-        logger.info("Minecraft Server Started In 0.0.0.0:" + port);
+        logger.info("Started in 0.0.0.0:" + port);
         // Start the server on that port same as server properties
-        minecraftServer.setBrandName("Copper");
+        minecraftServer.setBrandName("Hestia");
         minecraftServer.start("0.0.0.0", port);
         OpenToLAN.open();
         // Load Copper Terminal
@@ -523,7 +582,7 @@ instanceContainer.setGenerator(unit -> {
 
         player.sendMessage("Saved!");
     }
-
+        // uhh fuck, these code are useless.
     public static void initAutoSave(Player player) {
         MinecraftServer.getSchedulerManager().buildTask(() -> {
             logger.info("Auto-saving world...");

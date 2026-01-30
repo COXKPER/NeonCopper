@@ -14,7 +14,7 @@ public class ServerConfig {
             }
         } else {
             // Default values
-            properties.setProperty("motd", "A Copper Minecraft Server");
+            properties.setProperty("motd", "Hestia");
             properties.setProperty("max-players", "100");
             properties.setProperty("port", "25565");
             properties.setProperty("seed", "1036");

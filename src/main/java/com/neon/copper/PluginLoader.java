@@ -13,7 +13,7 @@ import org.apache.logging.log4j.Logger;
 
 public class PluginLoader {
     private static final Logger logger = LogManager.getLogger(PluginLoader.class);
-    public static final int SUPPORTED_API_LEVEL = 1217;
+    public static final int SUPPORTED_API_LEVEL = 12111;
 
     // Thread-safe list
     public static final List<PluginInfo> loadedPlugins = Collections.synchronizedList(new ArrayList<>());
