@@ -2,7 +2,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.neon.copper</groupId>
     <artifactId>Hestia</artifactId>
-    <version>1</version>
+    <version>1.1.0</version>
 
     <properties>
         <java.version>25</java.version> <!--Minestom has a minimum Java version of 21-->
@@ -103,6 +103,14 @@
     <artifactId>window</artifactId>
     <version>1.1</version>
 </dependency>
+
+    <dependency>
+        <groupId>org.junit.jupiter</groupId>
+        <artifactId>junit-jupiter</artifactId>
+        <version>5.11.3</version>
+        <scope>test</scope>
+    </dependency>
+
     </dependencies>
 
     <build>
@@ -155,6 +163,13 @@
                 </annotationProcessorPaths>
                 </configuration>
             </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.2</version>
+            </plugin>
+
         </plugins>
     </build>
 </project>

@@ -33,8 +33,6 @@ if (target == null) {
     return;
 }
 player.teleport(target.getPosition());
-
-            player.teleport(target.getPosition());
             player.sendMessage("§aTeleported to §f" + target.getUsername());
         }, targetArg);
 
@@ -52,7 +50,7 @@ player.teleport(target.getPosition());
             double y = context.get(yArg);
             double z = context.get(zArg);
             player.teleport(new Pos(x, y, z));
-            player.sendMessage("§aTeleported to (" + x + ", " + y + ", " + z + ")");
+            player.sendMessage("§aTeleported to position (" + x + ", " + y + ", " + z + ").");
         }, xArg, yArg, zArg);
     }
 }
