@@ -7,7 +7,7 @@ import net.minestom.server.entity.Player;
 public class VersionCommand extends Command {
 
     private static final String SERVER_NAME = "Hestia";
-    private static final String SERVER_VERSION = "1.0.0"; 
+    private static final String SERVER_VERSION = "1.1.0";
 
     public VersionCommand() {
         super("version", "ver");
@@ -17,11 +17,9 @@ public class VersionCommand extends Command {
             String javaVer = System.getProperty("java.version");
 
             String msg = "§6🛈 " + SERVER_NAME + " §fv" + SERVER_VERSION + "\n"
-                    + "§7Minecraft: §f" + minestomVer + "\n"
+                    + "§7Minecraft/Minestom: §f" + minestomVer + "\n"
                     + "§7Java: §f" + javaVer + "\n"
-                    + "The Copyight Owned By COXKPER Corporation Parents of Neon Corporation, But We Dont Take Action Of The Cloning Or Change The Codebase" + "\n"
-                    + "Github Project, COXKPER Corporation 2026" + "\n"
-                    + "Repository Link: https://github.com/COXKPER/NeonCopper";
+                    + "§7Repository: §fhttps://github.com/COXKPER/NeonCopper";
 
             if (sender instanceof Player player) {
                 player.sendMessage(msg);

@@ -56,6 +56,7 @@ import net.minestom.server.instance.LightingChunk;
 import net.minestom.server.item.Material;
 import net.minestom.server.item.ItemStack;
 import net.minestom.server.event.player.PlayerBlockBreakEvent;
+import net.minestom.server.event.player.PlayerBlockPlaceEvent;
 import net.minestom.server.event.EventNode;
 import net.minestom.server.event.Event;
 import net.minestom.server.event.EventFilter;
@@ -74,6 +75,8 @@ import java.util.HashSet;
 import com.neon.copper.PluginLoader;
 import com.neon.copper.commands.PluginListCommand;
 import com.neon.copper.commands.VersionCommand;
+import com.neon.copper.commands.SaveCommand;
+import com.neon.copper.commands.SeedCommand;
 import com.neon.copper.LogRotator;
 import lombok.*;
 import com.google.gson.*;
@@ -94,8 +97,8 @@ public class Main {
     private static byte[] cachedFaviconBytes = null;
     private final Map<UUID, JsonObject> preloadedData = new ConcurrentHashMap<>();
     private final Path dataDir = Path.of("userdata");
-    private static final String SERVER_VERSION = "1.0.0";
-     private static final Set<Point> trackedFallingBlocks = new HashSet<>();
+    private static final String SERVER_VERSION = "1.1.0";
+     private static final Set<Point> trackedFallingBlocks = ConcurrentHashMap.newKeySet();
      private static final Logger logger = LogManager.getLogger(Main.class);
      private static final Map<UUID, JsonObject> preloadData = new ConcurrentHashMap<>();
      private static String cachedFavicon;
@@ -143,9 +146,9 @@ private static void deleteRecursively(Path path) throws IOException {
         if (!logDir.exists()) {
             boolean created = logDir.mkdirs();
             if (created) {
-                logger.info("Created Logging");
+                logger.info("Created logging directory.");
             } else {
-                System.err.println("Cannot Creating Directory, Forcing Close");
+                System.err.println("Cannot create logging directory, forcing shutdown.");
                 System.exit(1);
             }
         }
@@ -197,6 +200,7 @@ private static void deleteRecursively(Path path) throws IOException {
         System.setProperty("minestom.new-chunk-sending-send-interval", "1");
         Path worldFolder = Paths.get("./world");
         Path polarWorldPath = worldFolder.resolve("overworld.mca");
+        Path persistedSeedPath = worldFolder.resolve("world.seed");
         logger.info("\u001B[31m    )                          ");
         logger.info("\u001B[33m ( /(              )           ");
         logger.info("\u001B[91m )\\(\\))   (      ( /( (      )  ");
@@ -227,7 +231,11 @@ private static void deleteRecursively(Path path) throws IOException {
             logger.error("Failed to create world folder: " + e.getMessage());
         }
         // CustomNoise noise = new CustomNoise(seed, 0.002, 10, 6, 0.4);
-       CustomNoise noise = new CustomNoise(seed, 0.001953125, 10, 6, 0.5);
+        long worldSeed = WorldSeedManager.resolveSeed(persistedSeedPath, seed);
+        config.set("seed", Long.toString(worldSeed));
+        config.save("server.properties");
+        CustomNoise noise = new CustomNoise(worldSeed, 0.001953125, 10, 6, 0.5);
+        logger.info("Using world seed {} for terrain generation.", worldSeed);
         logger.info("Starting Hestia " + SERVER_VERSION);
 
         MinecraftServer.getCommandManager().setUnknownCommandCallback((sender, command) -> {
@@ -277,7 +285,6 @@ try {
                     // Retry loading
                     instanceContainer.setChunkLoader(new PolarLoader(polarWorldPath));
                     logger.info("Successfully loaded world after MCA recovery.");
-                    return; // successful, stop here
 
                 } catch (IOException retryEx) {
                     logger.error("MCA recovery failed", retryEx);
@@ -359,27 +366,45 @@ instanceContainer.setGenerator(unit -> {
 });
 */
 instanceContainer.setGenerator(unit -> {
+    final int seaLevel = 62;
     Point start = unit.absoluteStart();
     for (int x = 0; x < unit.size().x(); x++) {
         for (int z = 0; z < unit.size().z(); z++) {
             Point columnStart = start.add(x, 0, z);
-            int surfaceHeight = (int) noise.evaluateNoise(columnStart.x(), columnStart.z()) + 64;
+            CustomNoise.TerrainSample terrain = noise.sampleTerrain(columnStart.x(), columnStart.z());
+            int surfaceHeight = terrain.surfaceHeight();
 
-            for (int y = -64; y <= surfaceHeight; y++) {
-                // Gua: kosongkan blok jika cave noise aktif
-                if (noise.isCave(columnStart.x(), y, columnStart.z())) {
-                    continue; // skip set block (jadi air kosong)
+            for (int y = -64; y <= Math.max(surfaceHeight, seaLevel); y++) {
+                if (y <= surfaceHeight && noise.isCave(columnStart.x(), y, columnStart.z())) {
+                    continue;
                 }
 
-                if (y <= -43) {
+                if (y <= -62 + (Math.abs((int) columnStart.x() + (int) columnStart.z()) % 2)) {
                     unit.modifier().setBlock(columnStart.withY(y), Block.BEDROCK);
-                } else if (y < surfaceHeight - 3) {
+                } else if (y < surfaceHeight - 4) {
                     unit.modifier().setBlock(columnStart.withY(y), Block.STONE);
                 } else if (y < surfaceHeight - 1) {
-                    unit.modifier().setBlock(columnStart.withY(y), Block.DIRT);
-                } else if (y == surfaceHeight - 1) {
-                    unit.modifier().setBlock(columnStart.withY(y), Block.GRASS_BLOCK);
+                    if (terrain.biome() == CustomNoise.Biome.DESERT) {
+                        unit.modifier().setBlock(columnStart.withY(y), Block.SANDSTONE);
+                    } else {
+                        unit.modifier().setBlock(columnStart.withY(y), Block.DIRT);
+                    }
+                } else if (y == surfaceHeight) {
+                    if (surfaceHeight <= seaLevel) {
+                        unit.modifier().setBlock(columnStart.withY(y), Block.SAND);
+                    } else if (terrain.biome() == CustomNoise.Biome.DESERT) {
+                        unit.modifier().setBlock(columnStart.withY(y), Block.SAND);
+                    } else {
+                        unit.modifier().setBlock(columnStart.withY(y), Block.GRASS_BLOCK);
+                    }
+                } else if (y > surfaceHeight && y <= seaLevel) {
+                    unit.modifier().setBlock(columnStart.withY(y), Block.WATER);
                 }
+            }
+
+            if (surfaceHeight > seaLevel + 1 && noise.shouldGenerateTree(columnStart.x(), columnStart.z(), terrain.biome())) {
+                CustomNoise.TreeSize treeSize = noise.sampleTreeSize(columnStart.x(), columnStart.z());
+                generateTree(unit, columnStart.withY(surfaceHeight + 1), treeSize);
             }
         }
     }
@@ -401,6 +426,8 @@ instanceContainer.setGenerator(unit -> {
         MinecraftServer.getCommandManager().register(new PluginListCommand());
         MinecraftServer.getCommandManager().register(new VersionCommand());
         MinecraftServer.getCommandManager().register(new TeleportCommand(permissionManager));
+        MinecraftServer.getCommandManager().register(new SaveCommand());
+        MinecraftServer.getCommandManager().register(new SeedCommand(worldSeed));
 
 
 
@@ -427,7 +454,7 @@ instanceContainer.setGenerator(unit -> {
         globalEventHandler.addListener(AsyncPlayerPreLoginEvent.class, event -> {
             int onlinePlayers = MinecraftServer.getConnectionManager().getOnlinePlayers().size();
             if(maxPlayers > -1 &&
-                    onlinePlayers > maxPlayers) {
+                    onlinePlayers >= maxPlayers) {
                event.getConnection().kick(Component.text("§cThe server is so popular"));
             }
         });
@@ -446,7 +473,7 @@ instanceContainer.setGenerator(unit -> {
             String username = event.getPlayer().getUsername();
             String message = event.getRawMessage();
 
-            logger.info("[ " + username + " ]: " + message);
+            logger.info("<{}> {}", username, message);
         });
 
 
@@ -491,6 +518,13 @@ globalEventHandler.addListener(ServerListPingEvent.class, event -> {
 
     event.setStatus(statusBuilder.build());
 });
+
+        globalEventHandler.addListener(PlayerBlockPlaceEvent.class, event -> {
+            var material = event.getBlock().registry().material();
+            if (material == Material.SAND || material == Material.GRAVEL || material == Material.RED_SAND) {
+                trackedFallingBlocks.add(event.getBlockPosition());
+            }
+        });
 
         globalEventHandler.addListener(PlayerBlockBreakEvent.class, event -> {
             Player player = event.getPlayer();
@@ -539,16 +573,25 @@ globalEventHandler.addListener(ServerListPingEvent.class, event -> {
 
         scheduler.buildTask(() -> {
             for (Instance instance : MinecraftServer.getInstanceManager().getInstances()) {
-                for (Point pos : trackedFallingBlocks) {
+                trackedFallingBlocks.removeIf(pos -> {
                     Material block = instance.getBlock(pos).registry().material();
-                    if (fallingBlocks.contains(block) && instance.getBlock(pos.withY(pos.y() - 1)).isAir()) {
-                        instance.setBlock(pos, Block.AIR);
-                        // Here you would spawn a custom falling entity, if implemented.
+                    if (!fallingBlocks.contains(block)) {
+                        return true;
                     }
-                }
+
+                    Point below = pos.withY(pos.y() - 1);
+                    if (instance.getBlock(below).isAir()) {
+                        instance.setBlock(pos, Block.AIR);
+                        instance.setBlock(below, block == Material.GRAVEL ? Block.GRAVEL : (block == Material.RED_SAND ? Block.RED_SAND : Block.SAND));
+                        trackedFallingBlocks.add(below);
+                    }
+                    return true;
+                });
             }
         }).repeat(TaskSchedule.millis(50)).schedule();
         
+        initAutoSave();
+
         logger.info("Started in 0.0.0.0:" + port);
         // Start the server on that port same as server properties
         minecraftServer.setBrandName("Hestia");
@@ -558,28 +601,51 @@ globalEventHandler.addListener(ServerListPingEvent.class, event -> {
         new CopperTerminalConsole().start();
     }
 
-     public static void save(Player player) {
-        if (player == null) return;
+    public static void saveAllWorlds() {
+        MinecraftServer.getInstanceManager().getInstances().forEach(instance -> {
+            try {
+                var polarLoader = new PolarLoader(new PolarWorld());
+                ((InstanceContainer) instance).setChunkLoader(polarLoader);
+                instance.saveInstance().join();
+                Files.write(Path.of("./world/overworld.mca"), PolarWriter.write(polarLoader.world()), StandardOpenOption.CREATE);
+            } catch (Exception e) {
+                logger.error("Failed to save world", e);
+            }
+        });
+        logger.info("World save finished.");
+    }
 
-        player.sendMessage("Saving...");
-        var polarLoader = new PolarLoader(new PolarWorld());
-        ((InstanceContainer) player.getInstance()).setChunkLoader(polarLoader);
-        player.getInstance().saveInstance().join();
+    public static void initAutoSave() {
+        MinecraftServer.getSchedulerManager().buildTask(() -> {
+            logger.info("Auto-saving world every 120 seconds...");
+            saveAllWorlds();
+        }).repeat(TaskSchedule.seconds(120)).schedule();
+    }
 
-        try {
-            Files.write(Path.of("./world/overworld.mca"), PolarWriter.write(polarLoader.world()), StandardOpenOption.CREATE);
-            logger.info("Saving World");
-        } catch (Exception e) {
-            logger.error("Failed to save world", e);
+    private static void generateTree(GenerationUnit unit, Point root, CustomNoise.TreeSize size) {
+        int trunkHeight;
+        int leafRadius;
+        switch (size) {
+            case SMALL -> { trunkHeight = 4; leafRadius = 2; }
+            case MEDIUM -> { trunkHeight = 6; leafRadius = 2; }
+            case LARGE -> { trunkHeight = 8; leafRadius = 3; }
+            default -> { trunkHeight = 11; leafRadius = 4; }
         }
 
-        player.sendMessage("Saved!");
-    }
-        // uhh fuck, these code are useless.
-    public static void initAutoSave(Player player) {
-        MinecraftServer.getSchedulerManager().buildTask(() -> {
-            logger.info("Auto-saving world...");
-            save(player);
-        }).repeat(TaskSchedule.seconds(60)).schedule();
+        for (int y = 0; y < trunkHeight; y++) {
+            unit.modifier().setBlock(root.withY(root.y() + y), Block.OAK_LOG);
+        }
+
+        int leafStart = trunkHeight - 2;
+        for (int y = leafStart; y <= trunkHeight + 1; y++) {
+            int dynamicRadius = Math.max(1, leafRadius - Math.abs(y - trunkHeight));
+            for (int dx = -dynamicRadius; dx <= dynamicRadius; dx++) {
+                for (int dz = -dynamicRadius; dz <= dynamicRadius; dz++) {
+                    if (Math.abs(dx) + Math.abs(dz) <= dynamicRadius + 1) {
+                        unit.modifier().setBlock(root.add(dx, y, dz), Block.OAK_LEAVES);
+                    }
+                }
+            }
+        }
     }
 }

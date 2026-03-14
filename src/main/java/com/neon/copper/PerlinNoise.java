@@ -1,4 +1,4 @@
-// PPK SALAH HAPUS 
+// Deterministic Perlin noise implementation used by terrain generation.
 package com.neon.copper;
 
 public class PerlinNoise {
